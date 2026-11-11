@@ -1,0 +1,138 @@
+# athena as an Umbrel app. The app code and its image are built in athena's own
+# repository; this file only wires the released image together.
+#
+# Data (bind mounts under ${APP_DATA_DIR}/data):
+#   postgres/  database        files/  downloads from ILIAS
+#   backups/   pg_dump files    config/ athena.env (secrets) and semesters/*.yaml
+#
+# Image references (tag@digest) are updated by athena's Release workflow.
+
+x-athena: &athena
+  image: ghcr.io/rayzerlukas/athena:0.0.0@sha256:0000000000000000000000000000000000000000000000000000000000000000
+  user: "1000:1000"
+  restart: on-failure
+  environment: &athena-env
+    ATHENA_ENV_FILE: /data/config/athena.env  # secrets; created by the owner, see README
+    ATHENA_DATABASE_URL: postgresql+asyncpg://athena:athena@postgres:5432/athena
+    ATHENA_DATA_DIR: /data/files
+    ATHENA_SEMESTERS_DIR: /data/config/semesters
+    ATHENA_LOG_JSON: "true"
+  volumes:
+    - ${APP_DATA_DIR}/data/files:/data/files
+    - ${APP_DATA_DIR}/data/config:/data/config:ro
+  depends_on:
+    postgres:
+      condition: service_healthy
+
+services:
+  app_proxy:
+    environment:
+      # The status page (later the web app); protected by the Umbrel login.
+      APP_HOST: olymp-athena_status_1
+      APP_PORT: 8081
+
+  postgres:
+    image: postgres:17-alpine@sha256:3540c0362c809df084ffac0ae69fe794515f9de92692f02178bcdce0ef0302ac
+    user: "1000:1000"
+    restart: on-failure
+    environment:
+      # Only reachable inside the app's network; not published.
+      POSTGRES_USER: athena
+      POSTGRES_PASSWORD: athena
+      POSTGRES_DB: athena
+      PGDATA: /var/lib/postgresql/data
+    volumes:
+      - ${APP_DATA_DIR}/data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U athena -d athena"]
+      interval: 5s
+      retries: 10
+
+  worker:
+    <<: *athena
+    command: ["python", "-m", "athena", "run"]
+    healthcheck:  # heartbeat younger than 5 minutes
+      test: ["CMD", "python", "-m", "athena", "health", "worker"]
+      interval: 60s
+      timeout: 20s
+      start_period: 5m
+      start_interval: 5s
+
+  mcp:
+    <<: *athena
+    command: ["python", "-m", "athena", "mcp"]
+    environment:
+      <<: *athena-env
+      ATHENA_MCP_HOST: 0.0.0.0
+      ATHENA_MCP_PORT: "8080"
+    # Exposure for Claude is still open (see README, "Connector").
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health')"]
+      interval: 5s
+      retries: 20
+    depends_on:
+      postgres:
+        condition: service_healthy
+      worker:
+        condition: service_started
+
+  status:
+    <<: *athena
+    command: ["python", "-m", "athena", "status"]
+    environment:
+      <<: *athena-env
+      ATHENA_STATUS_HOST: 0.0.0.0
+      ATHENA_STATUS_PORT: "8081"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8081/health')"]
+      interval: 5s
+      retries: 20
+    depends_on:
+      postgres:
+        condition: service_healthy
+      worker:
+        condition: service_started
+
+  bot:
+    <<: *athena
+    command: ["python", "-m", "athena", "bot"]
+    healthcheck:
+      test: ["CMD", "python", "-m", "athena", "health", "bot"]
+      interval: 60s
+      timeout: 20s
+      start_period: 5m
+      start_interval: 5s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      worker:
+        condition: service_started
+
+  # The backup script ships in the athena image (same version as the app); this one-shot
+  # service copies it next to the backups, where the backup service runs it with pg_dump.
+  backup-script:
+    image: ghcr.io/rayzerlukas/athena:0.0.0@sha256:0000000000000000000000000000000000000000000000000000000000000000
+    user: "1000:1000"
+    restart: "no"
+    command: ["cp", "/opt/athena/backup/backup.sh", "/backups/backup.sh"]
+    volumes:
+      - ${APP_DATA_DIR}/data/backups:/backups
+
+  backup:  # nightly pg_dump into data/backups, rotation, heartbeat for alerts
+    image: postgres:17-alpine@sha256:3540c0362c809df084ffac0ae69fe794515f9de92692f02178bcdce0ef0302ac
+    user: "1000:1000"
+    restart: on-failure
+    command: ["sh", "/backups/backup.sh", "loop"]
+    environment:
+      PGHOST: postgres
+      PGUSER: athena
+      PGPASSWORD: athena
+      PGDATABASE: athena
+      BACKUP_DIR: /backups
+    volumes:
+      - ${APP_DATA_DIR}/data/backups:/backups
+    depends_on:
+      backup-script:
+        condition: service_completed_successfully
+      worker:
+        condition: service_healthy  # migrations done: the heartbeats table exists

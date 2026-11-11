@@ -1,0 +1,32 @@
+manifestVersion: 1
+id: olymp-athena
+category: productivity
+name: athena
+# Placeholder until the first athena release; the athena Release workflow updates it.
+version: "0.0.0"
+tagline: Study tracker that makes your course material searchable for Claude
+description: >-
+  athena downloads course material from the university's ILIAS, makes it searchable page
+  by page and exposes it to Claude as a custom connector (MCP), so you can ask questions
+  about your lectures and exercise sheets in any Claude app. A Telegram bot reports open
+  assignments and deadlines, and a status page shows open sheets, the last crawl and
+  backups.
+
+
+  The app is installed from a private image; see the store's README for the first-start
+  steps (secrets file, semester file).
+developer: rayzerlukas
+website: https://github.com/rayzerlukas/olymp
+repo: https://github.com/rayzerlukas/olymp
+support: https://github.com/rayzerlukas/olymp/issues
+port: 8471
+gallery: []
+dependencies: []
+path: ""
+defaultUsername: ""
+defaultPassword: ""
+releaseNotes: ""
+submitter: rayzerlukas
+submission: https://github.com/rayzerlukas/olymp
+storage:
+  dataRoot: data
