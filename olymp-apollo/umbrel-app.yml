@@ -1,0 +1,38 @@
+# Generated from apollo's umbrel/olymp-apollo/ by apollo's Release workflow
+# (scripts/update_store.py): change it there, not in the store.
+manifestVersion: 1
+id: olymp-apollo
+category: finance
+name: apollo
+# Placeholder in apollo's repository; the Release workflow sets the released version.
+version: "0.0.0"
+tagline: Self-hosted data foundation for fact-based trading
+description: >-
+  apollo collects data about markets, companies and the world, maps it stably to the
+  securities it concerns and keeps an honest history of what was known when. Broker
+  access is read-only.
+
+
+  The app has no web interface yet; a status page follows. It is installed from a
+  private image; see the store's README for the first start.
+developer: rayzerlukas
+website: https://github.com/rayzerlukas/olymp
+repo: https://github.com/rayzerlukas/olymp
+support: https://github.com/rayzerlukas/olymp/issues
+port: 8472
+# The icon lives next to this manifest in the store (copied by scripts/update_store.py).
+icon: https://raw.githubusercontent.com/rayzerlukas/olymp/main/olymp-apollo/icon.svg
+gallery: []  # screenshots follow with the status page (#38)
+dependencies: []
+path: ""
+defaultUsername: ""
+defaultPassword: ""
+releaseNotes: ""
+submitter: rayzerlukas
+submission: https://github.com/rayzerlukas/olymp
+storage:
+  dataRoot: data
+# umbrelOS backups: a copy of a running database's files is not consistent; the daily
+# pg_dump files in data/backups/ are, and they are included.
+backupIgnore:
+  - data/postgres
