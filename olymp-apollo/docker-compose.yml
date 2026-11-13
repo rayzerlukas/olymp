@@ -7,17 +7,18 @@
 #   postgres/  database      backups/  pg_dump files      config/  apollo.env (secrets)
 #   blobs/     fetched bodies (the blob store, APOLLO_BLOB_DIR)
 #
-# No web UI yet, so no app_proxy: the status page (#38) adds one.
-# Two apollo processes (decision 0025): `worker` migrates the database and runs batch
-# work; `intake` runs live polls and streams and starts once `worker` is healthy.
+# Three apollo processes (decisions 0025, 0028): `worker` migrates the database and runs
+# batch work; `intake` runs live polls and streams; `web` serves the GUI and its read-only
+# JSON API. The browser reaches `web` only through umbrelOS's app proxy (its login in
+# front, port 8472 of umbrel-app.yml); nothing is published.
 # Start order: postgres -> backup-script -> pre-upgrade (a labelled backup when the image
-# version changed) -> worker (migrates) -> intake and backup.
+# version changed) -> worker (migrates) -> intake, web and backup.
 #
 # Memory: the Umbrel (16 GB) is shared with other apps, so every service has a limit; the
-# long-running ones together at most 6.5 GB (docs/deployment.md#memory).
+# long-running ones together at most 6.8 GB (docs/deployment.md#memory).
 
 x-apollo: &apollo
-  image: ghcr.io/rayzerlukas/apollo:0.0.0@sha256:0000000000000000000000000000000000000000000000000000000000000000
+  image: ghcr.io/rayzerlukas/apollo:0.1.0@sha256:5202e6a01e55e075b53611d52e8571f6514596eb3e021656e582f66a527eed3d
   user: "1000:1000"
   restart: on-failure
   environment:
@@ -37,6 +38,11 @@ x-backup-env: &backup-env
   BACKUP_DIR: /backups
 
 services:
+  app_proxy:  # umbrelOS adds the image; this names the service and port it forwards to
+    environment:
+      APP_HOST: olymp-apollo_web_1
+      APP_PORT: 8080
+
   postgres:
     image: postgres:17-alpine@sha256:3540c0362c809df084ffac0ae69fe794515f9de92692f02178bcdce0ef0302ac
     user: "1000:1000"
@@ -59,7 +65,9 @@ services:
     shm_size: 256mb  # parallel queries; Docker's default /dev/shm is 64 MB
     mem_limit: 3g
 
-  worker:  # migrates the database at start, then runs batch work
+  worker:  # migrates the database at start, then runs batch work and the notifier
+    # (digest and ops messages; Telegram's token and chat id come from config/apollo.env,
+    # docs/operations.md#notifications – only this service sends)
     <<: *apollo
     command: ["worker"]
     stop_grace_period: 30s  # SIGTERM gives running jobs 10 s, then the worker exits
@@ -93,11 +101,36 @@ services:
       start_period: 2m
       start_interval: 5s
 
+  web:  # the GUI and its read-only JSON API (decision 0028); a failure never touches intake
+    <<: *apollo
+    command: ["web"]
+    environment:  # least privilege: the database only; no secrets file, no blob store
+      APOLLO_DATABASE_URL: postgresql+asyncpg://apollo:apollo@postgres:5432/apollo
+      APOLLO_LOG_JSON: "true"
+      # Reached only through the app proxy, behind the Umbrel login; the Host it forwards
+      # is the name the owner typed (umbrel.local, an IP, a tailnet name), so any host is
+      # accepted here (docs/configuration.md, APOLLO_WEB_TRUSTED_HOSTS).
+      APOLLO_WEB_TRUSTED_HOSTS: "*"
+    volumes: []
+    stop_grace_period: 10s
+    mem_limit: 320m
+    depends_on:
+      postgres:
+        condition: service_healthy
+      worker:
+        condition: service_healthy  # migrations done
+    healthcheck:  # answers its ping (no database needed)
+      test: ["CMD", "apollo", "health", "web"]
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      start_interval: 2s
+
   # The backup script ships in the apollo image (same version as the app); this one-shot
   # service copies it next to the backups, where the backup services run it with pg_dump,
   # and records the image's version for pre-upgrade. It always exits 0.
   backup-script:
-    image: ghcr.io/rayzerlukas/apollo:0.0.0@sha256:0000000000000000000000000000000000000000000000000000000000000000
+    image: ghcr.io/rayzerlukas/apollo:0.1.0@sha256:5202e6a01e55e075b53611d52e8571f6514596eb3e021656e582f66a527eed3d
     user: "1000:1000"
     restart: "no"
     entrypoint: ["sh", "-c"]

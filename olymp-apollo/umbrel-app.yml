@@ -5,7 +5,7 @@ id: olymp-apollo
 category: finance
 name: apollo
 # Placeholder in apollo's repository; the Release workflow sets the released version.
-version: "0.0.0"
+version: "0.1.0"
 tagline: Self-hosted data foundation for fact-based trading
 description: >-
   apollo collects data about markets, companies and the world, maps it stably to the
@@ -13,8 +13,9 @@ description: >-
   access is read-only.
 
 
-  The app has no web interface yet; a status page follows. It is installed from a
-  private image; see the store's README for the first start.
+  The web interface shows data health: sources, open findings, the job backlog,
+  streams, storage and backups. It is read-only and shows no amounts of money. The app
+  is installed from a private image; see the store's README for the first start.
 developer: rayzerlukas
 website: https://github.com/rayzerlukas/olymp
 repo: https://github.com/rayzerlukas/olymp
