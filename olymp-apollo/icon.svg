@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <title>apollo</title>
+  <rect width="256" height="256" rx="56" fill="#14213d"/>
+  <g stroke="#fca311" stroke-width="10" stroke-linecap="round">
+    <line x1="128" y1="34" x2="128" y2="58"/>
+    <line x1="61.5" y1="61.5" x2="78.5" y2="78.5"/>
+    <line x1="194.5" y1="61.5" x2="177.5" y2="78.5"/>
+    <line x1="34" y1="128" x2="58" y2="128"/>
+    <line x1="198" y1="128" x2="222" y2="128"/>
+  </g>
+  <circle cx="128" cy="128" r="46" fill="#fca311"/>
+  <polyline points="40,206 92,174 128,190 172,148 216,160" fill="none" stroke="#e5e5e5"
+            stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
